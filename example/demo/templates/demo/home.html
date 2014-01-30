@@ -1,0 +1,134 @@
+{% extends "demo/base.html" %}
+
+{% block content %}
+<div class="container">
+
+  <h1>django-sqladmin examples</h1>
+
+  <p>Examples use django-teryt as test data.</p>
+
+  <h2>Example 1</h2>
+  <div style="margin-top:10px; margin-bottom:10px;">
+    <div id="example1div"></div>
+  </div>
+  <ul class="nav nav-pills">
+    <li class='active'><a href="#example1_python" data-toggle="tab">Python</a></li>
+    <li><a href="#example1_html" data-toggle="tab">HTML</a></li>
+    <li><a href="#example1_js" data-toggle="tab">JavaScript</a></li>
+  </ul>
+  <!-- Tab panes -->
+  <div class="tab-content">
+    <div class="tab-pane active" id="example1_python">
+      <pre><code>from sqltables import manager
+from sqltables.base import Table
+
+class Example1(Table):
+    query="SELECT * from teryt_miejscowosc where jednostka_id like '1465%%'"
+
+manager.register(Example1)
+      </code></pre>
+    </div>
+    <div class="tab-pane" id="example1_html">
+      <pre><code>&lt;div id="example1div"&gt;&lt;/div&gt;
+      </code></pre>
+    </div>
+    <div class="tab-pane" id="example1_js">
+      <pre><code>$(document).ready(function() {
+    var example1 = new SQLTable('example1div', 'demo', 'Example1');
+  });
+      </code></pre>
+    </div>
+  </div>
+
+
+
+  <h2>Example 2</h2>
+  <div style="margin-top:10px; margin-bottom:10px;">
+    <form class="form-horizontal" role="form">
+      <div class="form-group">
+        <label for="example2_input" class="col-sm-2 control-label">Street</label>
+        <div class="col-sm-10">
+          <input type="text" class="form-control" id="example2_input" value="Polna">
+        </div>
+      </div>
+    </form>
+    <div id="example2div"></div>
+  </div>
+  <ul class="nav nav-pills">
+    <li class='active'><a href="#example2_python" data-toggle="tab">Python</a></li>
+    <li><a href="#example2_html" data-toggle="tab">HTML</a></li>
+    <li><a href="#example2_js" data-toggle="tab">JavaScript</a></li>
+  </ul>
+  <!-- Tab panes -->
+  <div class="tab-content">
+    <div class="tab-pane active" id="example2_python">
+      <pre><code>from sqltables import manager
+from sqltables.base import Table
+
+class Example2(Table):
+    caption="Table title"
+    query="""SELECT w.nazwa,count(*)
+                FROM teryt_ulica AS u
+                    JOIN teryt_miejscowosc AS m
+                        ON u.miejscowosc_id=m.symbol
+                    JOIN teryt_jednostkaadministracyjna AS w
+                        ON w.id=substring(jednostka_id for 2)
+                WHERE nazwa_1=%(street_name)s
+                GROUP BY w.nazwa"""
+manager.register(Example2)
+      </code></pre>
+    </div>
+    <div class="tab-pane" id="example2_html">
+      <pre><code>&lt;form class="form-horizontal" role="form"&gt;
+  &lt;div class="form-group"&gt;
+    &lt;label for="example2_input" class="col-sm-2 control-label"&gt;Street&lt;/label&gt;
+    &lt;div class="col-sm-10"&gt;
+      &lt;input type="text" class="form-control" id="example2_input" placeholder="Street"&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/form&gt;
+&lt;div id="example2div"&gt;&lt;/div&gt;
+      </code></pre>
+    </div>
+    <div class="tab-pane" id="example2_js">
+      <pre><code>$(document).ready(function() {
+  var example2 = new SQLTable('example2div', 'demo', 'Example2',{
+    param_functions: {
+      street_name: function() {
+        return $('#example2_input').val();
+      }
+    }
+  });
+
+  $('#example2_input').typeWatch( {
+    callback: function (value) { example2.refresh();},
+  });
+});
+      </code></pre>
+    </div>
+  </div>
+</div><!-- /.container -->
+{% endblock %}
+
+{% block script %}
+<script>
+  $(document).ready(function() {
+    hljs.configure({languages: ['python','html','js']});
+    hljs.initHighlighting();
+
+    var example1 = new SQLTable('example1div', 'demo', 'Example1');
+    var example2 = new SQLTable('example2div', 'demo', 'Example2',{
+      param_functions: {
+        street_name: function() {
+          return $('#example2_input').val();
+        }
+      }
+    });
+
+    $('#example2_input').typeWatch( {
+      callback: function (value) { example2.refresh();},
+    });
+  });
+</script>
+<!-- <script src="https://google-code-prettify.googlecode.com/svn/loader/run_prettify.js"></script> -->
+{% endblock %}

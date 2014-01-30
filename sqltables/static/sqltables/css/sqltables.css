@@ -1,0 +1,18 @@
+/*
+div.ui-jqgrid-bdiv tr {
+	border-left: none;
+}
+
+div.ui-jqgrid-bdiv table {
+	padding-right: 2px;
+}
+div.ui-jqgrid-bdiv tr {
+	border-top: none;
+}
+div.ui-jqgrid-bdiv tr:last-child {
+	border-bottom: none;
+}
+div.ui-jqgrid-bdiv tr:last-child td {
+	border-bottom: none;
+}
+*/
