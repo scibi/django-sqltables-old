@@ -7,6 +7,7 @@ import json, re
 from django.http import HttpResponse
 from .filters import TextFilter,SelectFilter,NumberFilter,NumberRangeFilter,DateRangeFilter
 
+from django.db import DatabaseError
 
 class TableMeta(type):
     """
@@ -17,9 +18,7 @@ class TableMeta(type):
 class Table(six.with_metaclass(TableMeta)):
 
     def __init__(self, manager):
-        self.connection_name = None
         self.query_parameters = []
-        self.columns = []
         self.filtering_enabled = False
         self.paging = True
         self.export_file_name = None
@@ -30,21 +29,25 @@ class Table(six.with_metaclass(TableMeta)):
             self.query_parameters = re.findall('%\(([^)]*)\)s',self.get_query())
         if not self.export_file_name:
             self.export_file_name = self.__class__.__name__.lower()+'.csv'
-        if not self.columns:
-            self.detect_columns()
+
+        self.m_columns=getattr(self, 'columns', None)
+        if not self.m_columns:
+            self.m_columns=self.detect_columns()
 
     def detect_columns(self):
         q = "SELECT * FROM ({q}) AS q LIMIT 0".format(q=self.query)
         c = self.get_cursor()
+        columns=[]
         try:
-            c.execute(q,{p:'' for p in self.query_parameters})
+            c.execute(q,{p:'0' for p in self.query_parameters})
             for col in c.description:
-                self.columns.append({
+                columns.append({
                     'name': col[0],
                     'label': col[0],
                     })
         finally:
             c.close()
+        return columns
 
 
     def get_path(self):
@@ -54,11 +57,12 @@ class Table(six.with_metaclass(TableMeta)):
         return self.query
 
     def get_cursor(self):
-        if self.connection_name:
-            from django.db import connections
+        from django.db import connection, connections
+        try:
             return connections[self.connection_name].cursor()
+        except AttributeError:
+            pass
         
-        from django.db import connection
         return connection.cursor()
 
     def get_urls(self):
@@ -94,7 +98,7 @@ class Table(six.with_metaclass(TableMeta)):
     #
     def definition_view(self, request):
         rv_c=[]
-        for c in self.columns:
+        for c in self.m_columns:
             d={'name': c['name']}
             try:
                 d['label']=c['label']
@@ -112,7 +116,7 @@ class Table(six.with_metaclass(TableMeta)):
                 'columns': rv_c,
                 'filtering_enabled': self.filtering_enabled,
                 'paging': self.paging,
-                'default_sort_by': self.columns[0]['name'],
+                'default_sort_by': self.m_columns[0]['name'],
         }
 
         if self.query_parameters:
@@ -128,20 +132,24 @@ class Table(six.with_metaclass(TableMeta)):
                 content_type="application/json")
 
     def build_select_list(self):
-        return ", ".join([c['name'] for c in self.columns])
+        return ", ".join([c['name'] for c in self.m_columns])
 
     def get_data(self, request, limit=True):
         # get parameters values from request
         q_params={}
-        for p in self.query_parameters:
-            q_params[p]=request.GET["param_"+p]
+        try:
+            for p in self.query_parameters:
+                q_params[p]=request.GET["param_"+p]
+        except KeyError:
+            raise                       # FIXME FIXME FIXME
+
         
 
         # build WHERE part
         q_where_str=""
         if self.filtering_enabled:
             q_where=[]
-            for i, c in enumerate(self.columns):
+            for i, c in enumerate(self.m_columns):
                 try:
                     expression, params = c['filter'].get_filter_expression(request, c['name'], i)
                     if expression is not None:
@@ -154,7 +162,7 @@ class Table(six.with_metaclass(TableMeta)):
 
         # build ORDER BY part
         q_order_by=[]
-        for col in self.columns:
+        for col in self.m_columns:
             if col['name']==request.GET['sidx']:
                 order=('ASC', 'DESC')[request.GET['sord']=='desc']
                 try:
@@ -164,7 +172,7 @@ class Table(six.with_metaclass(TableMeta)):
                 q_order_by.append("{} {}".format(col_name, order))
 
 #        for i in range(int(request.GET['iSortingCols'])):
-#            col=self.columns[int(request.GET['iSortCol_%d' % i])]
+#            col=self.m_columns[int(request.GET['iSortCol_%d' % i])]
 #            order=('ASC', 'DESC')[request.GET['sSortDir_%d' % i]=='desc']
 #            try:
 #                col_name=col['order_by']
@@ -181,8 +189,8 @@ class Table(six.with_metaclass(TableMeta)):
         limit_q=""
         if limit:
             try:
-                q_params['_limit_limit']=int(request.GET['rowss'])
-                q_params['_limit_offset']=int(request.GET['page'])-1
+                q_params['_limit_limit']=int(request.GET['rows'])
+                q_params['_limit_offset']=(int(request.GET['page'])-1)*int(request.GET['rows'])
                 limit_q="LIMIT %(_limit_limit)s OFFSET %(_limit_offset)s"
                 if q_params['_limit_limit']<0:
                     limit_q=""
@@ -192,6 +200,8 @@ class Table(six.with_metaclass(TableMeta)):
         sl=self.build_select_list()
         q="SELECT %s FROM (%s) AS t %s %s %s" % (sl, self.query,
                 q_where_str, q_order_by_str, limit_q)
+
+        print q
 
         cursor=self.get_cursor()
         #from pprint import pprint
@@ -211,6 +221,9 @@ class Table(six.with_metaclass(TableMeta)):
                 t.append(unicode(x))
             res.append(t)
 
+        #total  total pages for the query
+        #page    current page of the query
+        #records total number of records for the query
         d={"rows": res,}
         try:
             d['sEcho']=int(request.GET['sEcho'])
@@ -234,7 +247,7 @@ class Table(six.with_metaclass(TableMeta)):
         writer = unicodecsv.writer(response)
 
         t=[]
-        for c in self.columns:
+        for c in self.m_columns:
             try:
                 t.append(c['label'])
             except KeyError:

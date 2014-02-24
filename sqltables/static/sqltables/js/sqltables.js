@@ -14,9 +14,32 @@ function SQLTable(table_id, app_name, table_name, options) {
 	this.base_url = '/tables/'+app_name+'/'+table_name;
 	this.options = options || {};
     this.ready = false;
+    this.auto_height_offset = -1;
 
 	init_table();
 
+    function update_height() {
+        console.log('SQLTable - update_height');
+        console.log(t.auto_height_offset);
+        if (t.auto_height_offset>=0) {
+            console.log($('#'+t.table_id).offset().top);
+            console.log($( window ).height());
+            var x = $( window ).height() - $('#'+t.table_id).offset().top - t.auto_height_offset;
+            console.log(x);
+            if ($('#'+t.table_id+' div.ui-jqgrid-titlebar').is(':visible')) {
+                console.log("titlebar - widoczny");
+                console.log($('#'+t.table_id+' div.ui-jqgrid-titlebar').outerHeight(true));
+                x = x - $('#'+t.table_id+' div.ui-jqgrid-titlebar').outerHeight(true);
+                console.log(x);
+            }
+            console.log($('#'+t.table_id+' div.ui-jqgrid-hdiv').outerHeight(true));
+            x = x - $('#'+t.table_id+' div.ui-jqgrid-hdiv').outerHeight(true);
+
+            x = x - $('#'+t.table_id+"_pager").outerHeight(true);
+            console.log(x);
+            $("#"+t.table_id+"_table").jqGrid('setGridHeight', x); 
+        }
+    }
 
 	function init_table() {
 		console.log('SQLTable - constructor - init_table');
@@ -36,9 +59,9 @@ function SQLTable(table_id, app_name, table_name, options) {
             var jqg_config={
                 url: t.base_url+'/data',
                 datatype: "json",
-                height: 200,
-                rowNum: 10,
-                rowList: [10,20,30],
+                height: '200',
+                rowNum: 100,
+                rowList: [100,200,500,1000],
                 colNames: col_names,
                 colModel: col_models,
                 pager: "#"+t.table_id+"_pager",
@@ -83,15 +106,24 @@ function SQLTable(table_id, app_name, table_name, options) {
 
 
             // Setup filters
-            jQuery("#"+t.table_id+"_table").jqGrid('filterToolbar',{defaultSearch:true,stringResult:true});
+            if (data['filtering_enabled']) {
+                jQuery("#"+t.table_id+"_table").jqGrid('filterToolbar',{defaultSearch:true,stringResult:true});
+            }
 
             // Set grid width to #content
             $("#"+t.table_id+"_table").jqGrid('setGridWidth', $("#"+t.table_id).width(), true); 
+
+            t.auto_height_offset=10;
+            update_height();
 
             // Bootstrap customization
             $(".ui-pg-input").attr('class', 'form-control');
 
             t.ready=true;
+            if ($('#'+t.table_id+' div.ui-jqgrid-titlebar').is(':visible')) {
+                console.log("titlebar - widoczny");
+                console.log($('#'+t.table_id+' div.ui-jqgrid-titlebar').height());
+            }
 /*
 			var items = [];
             var f_items = []
@@ -173,6 +205,10 @@ function SQLTable(table_id, app_name, table_name, options) {
 SQLTable.prototype.refresh = function() {
     console.log('SQLTable - refresh');
     console.log(this.grid);
+            if ($('#'+this.table_id+' div.ui-jqgrid-titlebar').is(':visible')) {
+                console.log("titlebar - widoczny");
+                console.log($('#'+this.table_id+' div.ui-jqgrid-titlebar').height());
+            }
     if (this.ready) {
         this.grid.trigger("reloadGrid");
     } else {
